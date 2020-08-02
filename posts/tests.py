@@ -2,11 +2,16 @@ from django.test import Client, TestCase
 from django.urls import reverse
 from urllib.parse import urljoin
 from django.core.cache import cache
+from io import BytesIO
+from PIL import Image
 
+import mock
+
+from django.core.files import File
 from .models import Post, User, Group, Follow, Comment
 
 
-class Hw04Test(TestCase):
+class HomeWork04Test(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
             username="Roman", email="honor.s@skybed.com")
@@ -113,48 +118,58 @@ class Hw05Test(TestCase):
             slug="ang"
         )
 
+    @staticmethod
+    def create_test_image_file():
+        file = BytesIO()
+        image = Image.new('RGBA', size=(100, 100), color=(155, 0, 0))
+        image.save(file, 'png')
+        file.name = 'test.png'
+        file.seek(0)
+        return file
+
     def test_404(self):
         response = self.client.get('/404/')
         self.assertEqual(response.status_code, 404)
 
-    def test_img(self):
-        with open('media\posts/YOLO-3.jpg', 'rb') as img:
-            post = self.client_auth.post(
-                reverse('new_post'),
-                data={
-                    'author': self.user,
-                    'text': 'post text with image',
-                    'group': self.group.id,
-                    'image': img
-                },
-                follow=True)
-            self.assertEqual(post.status_code, 200)
-            self.assertEqual(Post.objects.count(), 1)
-            post = Post.objects.first()
-            urls = [
-                reverse('index'),
-                reverse('post', kwargs={'username': self.user.username,
-                                        'post_id': post.id}),
-                reverse('profile', kwargs={'username': post.author}),
-                reverse('group_posts', kwargs={'slug': 'ang'}),
-            ]
-            for url in urls:
-                cache.clear()
-                response = self.client_auth.get(url)
-                self.assertEqual(response.status_code, 200)
-                self.assertContains(response, '<img')
-            with open('media/posts/movies_to_watch.txt', 'rb') as img:
-                post = self.client_auth.post(
-                    reverse('new_post'),
-                    data={
-                        'author': self.user,
-                        'text': 'post text with image',
-                        'group': self.group.id,
-                        'image': img
-                    },
-                    follow=True)
-            self.assertEqual(post.status_code, 200)
-            self.assertEqual(Post.objects.count(), 1)
+    def test_img_upload_success(self):
+        file = self.create_test_image_file()
+        post = self.client_auth.post(
+            reverse('new_post'),
+            data={
+                'author': self.user,
+                'text': 'post text with image',
+                'group': self.group.id,
+                'image': file
+            },
+            follow=True)
+        self.assertEqual(post.status_code, 200)
+        self.assertEqual(Post.objects.count(), 1)
+        post = Post.objects.first()
+        urls = [
+            reverse('index'),
+            reverse('post', kwargs={'username': self.user.username,
+                                    'post_id': post.id}),
+            reverse('profile', kwargs={'username': post.author}),
+            reverse('group_posts', kwargs={'slug': 'ang'}),
+        ]
+        for url in urls:
+            cache.clear()
+            response = self.client_auth.get(url)
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, '<img')
+
+    def test_upload_wrong_file(self):
+        file_mock = mock.MagicMock(spec=File, name='wrong.txt')
+        response = self.client_auth.post(reverse('new_post'),
+                                         {'text': 'post with image',
+                                          'group': self.group.id,
+                                          'image': file_mock},
+                                         follow=True)
+        self.assertFormError(response, form='form', field='image',
+                             errors='Загрузите правильное изображение.'
+                                    ' Файл, который вы'
+                                    ' загрузили, поврежден или не'
+                                    ' является изображением.')
 
     def test_cache(self):
         self.client_auth.post(reverse('new_post'),
@@ -170,7 +185,7 @@ class Hw05Test(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, text)
 
-    def test_comment(self):
+    def test_authorized_user_comment(self):
         post = Post.objects.create(text='text', author=self.user,
                                    group=self.group)
         response = self.client_un_auth.post(
@@ -239,7 +254,7 @@ class FollowTest(TestCase):
     def test_new_post_follow(self):
         self.client_auth_following.post(reverse('new_post'),
                                         data={'text': 'text',
-                                        'author': self.client_auth_following},
+                                              'author': self.client_auth_following},
                                         follow=True)
         response = self.client_auth_follower.get(
             reverse(
