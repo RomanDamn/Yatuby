@@ -48,14 +48,18 @@ def profile(request, username):
     posts = author.posts.all()
     count = posts.count()
     paginator = Paginator(posts, 10)
-    page_number = request.GET.get('page')
+    follower = Follow.objects.filter(author_id=author.id).count()
+    by_follow = Follow.objects.filter(user_id=author.id).count()
     following = Follow.objects.filter(author=author)
+    page_number = request.GET.get('page')
     page = paginator.get_page(page_number)
     return render(request, 'profile.html', {'page': page,
                                             'paginator': paginator,
                                             'count': count,
                                             'author': author,
-                                            'following': following})
+                                            'following': following,
+                                            'follower': follower,
+                                            'by_follow': by_follow})
 
 
 def post_view(request, username, post_id):
