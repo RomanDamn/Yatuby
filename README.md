@@ -4,6 +4,6 @@ Technology Stack:
 -Python
 -Django Framework
 
-This site was created by dint of Django. It allows you to create and edit your posts,leave comments, join groups and subscribe your favorite authors.
+This site was created by dint of Django. It allows you to create and edit your posts,leave comments, join groups and follow your favorite authors.
 There are admin panel and registration form.
 Enjoy.
